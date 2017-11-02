@@ -57,6 +57,13 @@ static inline void ib_v3_cross(ib_v3 *out, ib_v3 *a, ib_v3 *b)
    out->z = (a->x*b->y) - (a->y*b->x);
 }
 
+// Get the length of the vector
+static inline void ib_v3_len(float *out, ib_v3 *in)
+{
+   // Calculate and return length
+   *out = sqrt((in->x) * (in->x) + (in->y) * (in->y) + (in->z) * (in->z));
+}
+
 // Function used to normalize a given vector
 static inline void ib_v3_normalize(ib_v3 *v)
 {
