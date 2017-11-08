@@ -500,7 +500,8 @@ void get_sphere(obj *cur_obj, FILE *file, char *c, int *result)
    }
 
    // Return error code if required values are not found
-   if (r_found == TRUE && g_found == TRUE && b_found == TRUE &&
+   if (((r_found == TRUE && g_found == TRUE && b_found == TRUE) ||
+       (r_found == FALSE && g_found == FALSE && b_found == FALSE)) &&
        x_found == TRUE && y_found == TRUE && z_found == TRUE &&
        dr_found == TRUE && dg_found == TRUE && db_found == TRUE &&
        sr_found == TRUE && sg_found == TRUE && sb_found == TRUE &&
@@ -883,11 +884,13 @@ void get_plane(obj *cur_obj, FILE *file, char *c, int *result)
    }
 
    // Return error code if required values are not found
-   if (r_found == TRUE && g_found == TRUE && b_found == TRUE &&
+   if (((r_found == TRUE && g_found == TRUE && b_found == TRUE) ||
+       (r_found == FALSE && g_found == FALSE && b_found == FALSE)) &&
        x_found == TRUE && y_found == TRUE && z_found == TRUE &&
        n1_found == TRUE && n2_found == TRUE && n3_found == TRUE &&
        dr_found == TRUE && dg_found == TRUE && db_found == TRUE &&
-       sr_found == TRUE && sg_found == TRUE && sb_found == TRUE &&
+       ((sr_found == TRUE && sg_found == TRUE && sb_found == TRUE) ||
+       (sr_found == FALSE && sg_found == FALSE && sb_found == FALSE)) &&
        *result != INPUT_INVALID && prop_count <= SPHERE_VAL_COUNT)
    {
       *result = RUN_SUCCESS;
@@ -949,8 +952,8 @@ void get_light(obj *cur_obj, FILE *file, char *c, int *result)
             // Get property value
             get_next_word(value, VALUE_SEP, VALUE_LEN, file, c);
 
-            // Make sure r is between 0 and 1
-            if (atof(value) <= 1 && atof(value) >= 0)
+            // Make sure r is greater than 0
+            if (atof(value) >= 0)
             {
                // Set property value
                cur_obj->color.r = atof(value);
@@ -968,8 +971,8 @@ void get_light(obj *cur_obj, FILE *file, char *c, int *result)
             // Get property value
             get_next_word(value, VALUE_SEP, VALUE_LEN, file, c);
 
-            // Make sure g is between 0 and 1
-            if (atof(value) <= 1 && atof(value) >= 0)
+            // Make sure g is greater than 0
+            if (atof(value) >= 0)
             {
                // Set property value
                cur_obj->color.g = atof(value);
@@ -987,8 +990,8 @@ void get_light(obj *cur_obj, FILE *file, char *c, int *result)
             // Get property value
             get_next_word(value, V3_END, VALUE_LEN, file, c);
 
-            // Make sure b is between 0 and 1
-            if (atof(value) <= 1 && atof(value) >= 0)
+            // Make sure b is greater than 0
+            if (atof(value) >= 0)
             {
                // Set property value
                cur_obj->color.b = atof(value);

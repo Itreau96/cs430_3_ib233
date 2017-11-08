@@ -14,6 +14,7 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff);
 void sphere_intersection(ib_v3 *r0, ib_v3 *rd, obj *cur_obj, float *t);
 void plane_intersection(ib_v3 *r0, ib_v3 *rd, obj *cur_obj, float *t);
 void write_file(rgb_list *colors, int *width, int *height, char *file_name);
+float clamp(float value, float min, float max);
 
 // Object arrays
 obj *objects;
@@ -84,8 +85,8 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
    float t = INFINITY;
    float cur_t = t;
    obj_node *cur_obj = objs->first;
-   obj_node *closest;
-   double ambient[3] = { 0,0,0 };
+   obj_node closest;
+   int closest_index = 0;
 
    // Loop for as many columns in image
    for (cols = *height - 1; cols >= 0 ; cols-=1) // Start from top to bottom. Makes +y axis upward direction.
@@ -118,9 +119,10 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                // If current t is smaller than current smallest, set values
                if (cur_t < t)
                {
-                  cur_rgb = cur_obj->obj_ref.color;
+                  //cur_rgb = cur_obj->obj_ref.color;
                   t = cur_t;
-                  closest = cur_obj;
+                  closest = *cur_obj;
+                  closest_index = index;
                }
             }
             else if (cur_obj->obj_ref.type == PLANE)
@@ -130,9 +132,10 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                // If current t is smaller than current smallest, set values
                if (cur_t < t && cur_t > 0)
                {
-                  cur_rgb = cur_obj->obj_ref.color;
+                  //cur_rgb = cur_obj->obj_ref.color;
                   t = cur_t;
-                  closest = cur_obj;
+                  closest = *cur_obj;
+                  closest_index = index;
                }
             }
 
@@ -140,100 +143,186 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
             cur_obj = cur_obj->next;
          }
 
-         // Create default ambient values
-         ambient[0] = 0;
-         ambient[0] = 0;
-         ambient[0] = 0;
-
          // Reset traverser
          cur_obj = objs->first;        
 
-         // Loop through lights in array
-         for (int index = 0; index < objs->size; index+=1)
+         // Determine if color data is necessary
+         if (t != INFINITY && t > 0)
          {
-            // Make sure it is a light object
-            if (cur_obj->obj_ref.type == LIGHT)
+            // Loop through lights in array
+            for (int index = 0; index < objs->size; index+=1)
             {
-               // Do test for shadows
-               ib_v3 ro;
-               ro.x = (t * rd.x) + r0.x;
-               ro.y = (t * rd.y) + r0.y;
-               ro.z = (t * rd.z) + r0.z;
+               // Make sure it is a light object
+               if (cur_obj->obj_ref.type == LIGHT)
+               {
+                  // Do test for shadows
+                  ib_v3 ro;
+                  ro.x = (t * rd.x) + r0.x;
+                  ro.y = (t * rd.y) + r0.y;
+                  ro.z = (t * rd.z) + r0.z;
 
-               ib_v3 rdn;
-               rdn.x = rdn.x - ro.x;
-               rdn.y = rdn.y - ro.y;
-               rdn.z = rdn.z - ro.z;
+                  ib_v3 rdn;
+                  rdn.x = cur_obj->obj_ref.position.x - ro.x;
+                  rdn.y = cur_obj->obj_ref.position.y - ro.y;
+                  rdn.z = cur_obj->obj_ref.position.z - ro.z;
 
-               float dist;
-               ib_v3_len(&dist, &rdn);
+                  float dist;
+                  ib_v3_len(&dist, &rdn);
+                  ib_v3_normalize(&rdn);
 
-               obj_node *closest_shadow_object;
-               float closest_shadow_dist = INFINITY;
-               ib_v3 closest_pos;
-               int shadow = 0;
+                  float closest_shadow_dist = INFINITY;
+                  bool shadow = FALSE;
 
-               obj_node *shadow_node = objs->first;
+                  obj_node *shadow_node = objs->first;
+                  
+                  // Check for shadows
+                  for (int index2 = 0; index2 < objs->size; index2++)
+                  {
+                     if (closest_index == index2)
+                     {
+                        shadow_node = shadow_node->next;
+                        continue;
+                     }
+
+                     // Check if intersection with plane
+                     if (shadow_node->obj_ref.type == PLANE)
+                     {
+                        plane_intersection(&ro, &rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
+                     }
+                     // Check if intersection with sphere
+                     else if (shadow_node->obj_ref.type == PLANE)
+                     {
+                        sphere_intersection(&ro, &rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
+                     }
+                     // Otherwise, skip iteration because not object
+                     else
+                     {
+                        shadow_node = shadow_node->next;
+                        continue;
+                     }
+
+                     if (closest_shadow_dist > dist)
+                     {
+                        shadow_node = shadow_node->next;
+                        continue;
+                     }
+
+                     if (closest_shadow_dist < dist && closest_shadow_dist > 0.0)
+                     {
+                        shadow = TRUE;
+                     }
+
+                     // Traverse to next node
+                     shadow_node = shadow_node->next;
+                  }
+
+                  if (shadow == FALSE)
+                  {
+                     // Determine N, L, R, and V light values
+                     ib_v3 ni;
+                     ib_v3 li;
+                     ib_v3 ri;
+                     ib_v3 vi;
+                     rgb diff;
+                     rgb spec;
+                     
+                     // Determine object type
+                     if (closest.obj_ref.type == PLANE)
+                     {
+                        ni = closest.obj_ref.normal;
+                     }
+                     // Check if intersection with sphere
+                     else if (closest.obj_ref.type == SPHERE)
+                     {
+                        ib_v3_sub(&ni, &ro, &(closest.obj_ref.position));
+                        ib_v3_normalize(&ni);
+                     }
+                     
+                     // Set the specular and diffuse colors
+                     diff = closest.obj_ref.diffuse_color;
+                     spec = closest.obj_ref.specular_color;
+                     
+                     // Set Li
+                     li = rdn;
+                     
+                     float dot_val;
+                     ib_v3_dot(&dot_val, &ni, &li);
+                     ib_v3_scale(&ri, 2.0*dot_val, &ni);
+                     ib_v3_sub(&ri, &ri, &li);
+                     
+                     ib_v3_scale(&vi, -1, &rd);
+                     
+                     
+                     float frad = 1.0/(cur_obj->obj_ref.radial_a2*(dist*dist) + 
+                     cur_obj->obj_ref.radial_a1*dist + 
+                     cur_obj->obj_ref.radial_a0);
+
+                     float fang;
+                     ib_v3 vli = cur_obj->obj_ref.direction;
+                     ib_v3_normalize(&vli);
+                     
+                     // Determine if point light
+                     if(cur_obj->obj_ref.theta == 0 || cur_obj->obj_ref.angular_a0 == 0)
+                     {
+                        fang = 1.0;
+                     }
+                     // Otherwise, it is a spot light
+                     else
+                     {
+                        float target = cos(cur_obj->obj_ref.theta * 3.14159265 / 180.0);
+                        float cur_dot;
+                        ib_v3_dot(&cur_dot, &rdn, &vli);
+                     
+                        if(target > cur_dot)
+                        {
+                          fang = 0.0;
+                        }
+                        else
+                        {
+                          fang = pow(cur_dot, cur_obj->obj_ref.angular_a0);
+                        }
+                     }
+                     
+                     ib_v3 diffuse_calc;
+                     ib_v3 specular_calc;
+                     float nl_dot = 0;
+                     ib_v3_dot(&nl_dot, &ni, &li);
+                     float vr_dot = 0;
+                     ib_v3_dot(&vr_dot, &vi, &ri);
+                     
+                     if(nl_dot > 0)
+                     {
+                        diffuse_calc.x = cur_obj->obj_ref.color.r * diff.r;
+                        diffuse_calc.y = cur_obj->obj_ref.color.g * diff.g;
+                        diffuse_calc.z = cur_obj->obj_ref.color.b * diff.b;
+        
+                        ib_v3_scale(&diffuse_calc, nl_dot, &diffuse_calc);
+
+                        if(vr_dot > 0)
+                        {
+                           specular_calc.x = cur_obj->obj_ref.color.r * spec.r;
+                           specular_calc.y = cur_obj->obj_ref.color.g * spec.g;
+                           specular_calc.z = cur_obj->obj_ref.color.b * spec.b;
+                           
+                           ib_v3_scale(&specular_calc, pow(vr_dot,20), &specular_calc);
+                        }
+                        else
+                        {
+                           specular_calc.x = 0;
+                           specular_calc.y = 0;
+                           specular_calc.z = 0;
+                        }
+                     }
+                     
+                    	cur_rgb.r += frad * fang * clamp(diffuse_calc.x + specular_calc.x, 0, 1);
+                    	cur_rgb.g += frad * fang * clamp(diffuse_calc.y + specular_calc.y, 0, 1);
+                    	cur_rgb.b += frad * fang * clamp(diffuse_calc.z + specular_calc.z, 0, 1);
+                  }
+               }
                
-               // Check for shadows
-               for (int index2 = 0; index2 < objs->size; index2++)
-               {
-                  if (closest == shadow_node)
-                  {
-                     shadow_node = shadow_node->next;
-                     continue;
-                  }
-
-                  // Check if intersection with plane
-                  if (shadow_node->obj_ref.type == PLANE)
-                  {
-                     plane_intersection(&ro, &rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
-                  }
-                  // Check if intersection with sphere
-                  else if (shadow_node->obj_ref.type == PLANE)
-                  {
-                     sphere_intersection(&ro, &rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
-                  }
-                  // Otherwise, skip iteration because not object
-                  else
-                  {
-                     shadow_node = shadow_node->next;
-                     continue;
-                  }
-
-                  if (closest_shadow_dist > dist)
-                  {
-                     shadow_node = shadow_node->next;
-                     continue;
-                  }
-
-                  if (closest_shadow_dist < dist && closest_shadow_dist > 0.0)
-                  {
-                     closest_shadow_object = shadow_node;
-                     shadow = 1;
-                  }
-
-                  // Traverse to next node
-                  shadow_node = shadow_node->next;
-               }
-
-               if (shadow == 0 && !closest_shadow_object)
-               {
-                  // Determine N, L, R, and V light values
-                  ib_v3 ni;
-                  ib_v3 li;
-                  ib_v3 ri;
-                  ib_v3 vi;
-                  ib_v3 diff;
-                  ib_v3 spec;
-                  ib_v3 pos;
-                  
-                  
-               }
+               // Traverse to next object
+               cur_obj = cur_obj->next;
             }
-            
-            // Traverse to next object
-            cur_obj = cur_obj->next;
          }
 
          // Scale color value
@@ -420,6 +509,26 @@ void add_rgb(rgb *data, rgb_list *list)
       list->last = list->last->next;
       list->size = list->size + 1;
    }
+}
+
+// Helper method used to return a clamped value between min and max
+float clamp(float value, float min, float max)
+{
+   // First determine if value is greater than max
+   if (value > max)
+   {
+      // Return max
+      return max;
+   }
+   // Determine if value is less than min
+   else if (value < min)
+   {
+      // Return min
+      return min;
+   }
+   
+   // If this point is reached, value is within min and max
+   return value;
 }
 
 

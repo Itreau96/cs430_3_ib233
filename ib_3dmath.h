@@ -32,13 +32,22 @@ static inline void ib_v3_sub(ib_v3 *out, ib_v3 *a, ib_v3 *b)
    out->z = a->z - b->z;
 }
 
+// Multiply function for 2 vectors a and b
+static inline void ib_v3_mult(ib_v3 *out, ib_v3 *a, ib_v3 *b)
+{
+   // Set x, y, and z of output vector
+   out->x = a->x * b->x;
+   out->y = a->y * b->y;
+   out->z = a->z * b->z;
+}
+
 // Function used to scale input vector by scale value
-static inline void ib_v3_scale(ib_v3 *out, float scale)
+static inline void ib_v3_scale(ib_v3 *out, float scale, ib_v3 *in)
 {
    // Scale x, y, and z of output vector by scale value
-   out->x = out->x * scale;
-   out->y = out->y * scale;
-   out->z = out->z * scale;
+   out->x = in->x * scale;
+   out->y = in->y * scale;
+   out->z = in->z * scale;
 }
 
 // Function used to calculate dot product of two vectors
@@ -61,7 +70,7 @@ static inline void ib_v3_cross(ib_v3 *out, ib_v3 *a, ib_v3 *b)
 static inline void ib_v3_len(float *out, ib_v3 *in)
 {
    // Calculate and return length
-   *out = sqrt((in->x) * (in->x) + (in->y) * (in->y) + (in->z) * (in->z));
+   *out = sqrtf((in->x * in->x) + (in->y * in->y) + (in->z * in->z));
 }
 
 // Function used to normalize a given vector
