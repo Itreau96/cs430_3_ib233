@@ -119,7 +119,6 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                // If current t is smaller than current smallest, set values
                if (cur_t < t)
                {
-                  //cur_rgb = cur_obj->obj_ref.color;
                   t = cur_t;
                   closest = *cur_obj;
                   closest_index = index;
@@ -132,7 +131,6 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                // If current t is smaller than current smallest, set values
                if (cur_t < t && cur_t > 0)
                {
-                  //cur_rgb = cur_obj->obj_ref.color;
                   t = cur_t;
                   closest = *cur_obj;
                   closest_index = index;
@@ -190,7 +188,7 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                         plane_intersection(&ro, &rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
                      }
                      // Check if intersection with sphere
-                     else if (shadow_node->obj_ref.type == PLANE)
+                     else if (shadow_node->obj_ref.type == SPHERE)
                      {
                         sphere_intersection(&ro, &rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
                      }
@@ -324,6 +322,10 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                cur_obj = cur_obj->next;
             }
          }
+         
+         cur_rgb.r = clamp(cur_rgb.r, 0, 1);
+         cur_rgb.g = clamp(cur_rgb.g, 0, 1);
+         cur_rgb.b = clamp(cur_rgb.b, 0, 1);
 
          // Scale color value
          cur_rgb.r = cur_rgb.r * 255;
