@@ -15,10 +15,7 @@ void sphere_intersection(ib_v3 *r0, ib_v3 *rd, obj *cur_obj, float *t);
 void plane_intersection(ib_v3 *r0, ib_v3 *rd, obj *cur_obj, float *t);
 void write_file(rgb_list *colors, int *width, int *height, char *file_name);
 float clamp(float value, float min, float max);
-
-// Object arrays
-obj *objects;
-obj *lights;
+bool shadowed(ib_v3 *ro, ib_v3 *rdn, float *dist, int *closest_index, linked_list *list);
 
 int main(int argc, char* argv[])
 {
@@ -153,83 +150,45 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                // Make sure it is a light object
                if (cur_obj->obj_ref.type == LIGHT)
                {
-                  // Do test for shadows
+                  // Create new r0
                   ib_v3 ro;
                   ro.x = (t * rd.x) + r0.x;
                   ro.y = (t * rd.y) + r0.y;
                   ro.z = (t * rd.z) + r0.z;
 
+                  // Create new rd
                   ib_v3 rdn;
                   rdn.x = cur_obj->obj_ref.position.x - ro.x;
                   rdn.y = cur_obj->obj_ref.position.y - ro.y;
                   rdn.z = cur_obj->obj_ref.position.z - ro.z;
 
+                  // Calculate distance 
                   float dist;
                   ib_v3_len(&dist, &rdn);
                   ib_v3_normalize(&rdn);
 
-                  float closest_shadow_dist = INFINITY;
-                  bool shadow = FALSE;
-
-                  obj_node *shadow_node = objs->first;
+                  // Determine if current object is in shadow of another
+                  bool shadow = shadowed(&ro, &rdn, &dist, &closest_index, objs);
                   
-                  // Check for shadows
-                  for (int index2 = 0; index2 < objs->size; index2++)
-                  {
-                     if (closest_index == index2)
-                     {
-                        shadow_node = shadow_node->next;
-                        continue;
-                     }
-
-                     // Check if intersection with plane
-                     if (shadow_node->obj_ref.type == PLANE)
-                     {
-                        plane_intersection(&ro, &rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
-                     }
-                     // Check if intersection with sphere
-                     else if (shadow_node->obj_ref.type == SPHERE)
-                     {
-                        sphere_intersection(&ro, &rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
-                     }
-                     // Otherwise, skip iteration because not object
-                     else
-                     {
-                        shadow_node = shadow_node->next;
-                        continue;
-                     }
-
-                     if (closest_shadow_dist > dist)
-                     {
-                        shadow_node = shadow_node->next;
-                        continue;
-                     }
-
-                     if (closest_shadow_dist < dist && closest_shadow_dist > 0.0)
-                     {
-                        shadow = TRUE;
-                     }
-
-                     // Traverse to next node
-                     shadow_node = shadow_node->next;
-                  }
-
+                  // If no shadow, determine illumination
                   if (shadow == FALSE)
                   {
-                     // Determine N, L, R, and V light values
+                     // Init N, L, R, and V light values
                      ib_v3 ni;
                      ib_v3 li;
                      ib_v3 ri;
                      ib_v3 vi;
+                     
+                     // Init current diffuse and specular value of current object
                      rgb diff;
                      rgb spec;
                      
-                     // Determine object type
+                     // If plane, store normal as N
                      if (closest.obj_ref.type == PLANE)
                      {
                         ni = closest.obj_ref.normal;
                      }
-                     // Check if intersection with sphere
+                     // If sphere, store difference between r0 and current object position
                      else if (closest.obj_ref.type == SPHERE)
                      {
                         ib_v3_sub(&ni, &ro, &(closest.obj_ref.position));
@@ -243,18 +202,19 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                      // Set Li
                      li = rdn;
                      
+                     // Calculate reflection
                      float dot_val;
                      ib_v3_dot(&dot_val, &ni, &li);
                      ib_v3_scale(&ri, 2.0*dot_val, &ni);
                      ib_v3_sub(&ri, &ri, &li);
-                     
                      ib_v3_scale(&vi, -1, &rd);
                      
-                     
+                     // Calculate default f radial value
                      float frad = 1.0/(cur_obj->obj_ref.radial_a2*(dist*dist) + 
                      cur_obj->obj_ref.radial_a1*dist + 
                      cur_obj->obj_ref.radial_a0);
 
+                     // Calculate default f angular value
                      float fang;
                      ib_v3 vli = cur_obj->obj_ref.direction;
                      ib_v3_normalize(&vli);
@@ -271,6 +231,7 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                         float cur_dot;
                         ib_v3_dot(&cur_dot, &rdn, &vli);
                      
+                        // Determine fang value based on dot product
                         if(target > cur_dot)
                         {
                           fang = 0.0;
@@ -281,13 +242,17 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                         }
                      }
                      
-                     ib_v3 diffuse_calc;
-                     ib_v3 specular_calc;
+                     // Init final diffuse values
+                     ib_v3 diffuse_calc = { 0,0,0 };
+                     ib_v3 specular_calc = { 0,0,0 };
+                     
+                     // Calculate dot products
                      float nl_dot = 0;
                      ib_v3_dot(&nl_dot, &ni, &li);
                      float vr_dot = 0;
                      ib_v3_dot(&vr_dot, &vi, &ri);
                      
+                     // If nl is greater than 0, calculate diffuse values
                      if(nl_dot > 0)
                      {
                         diffuse_calc.x = cur_obj->obj_ref.color.r * diff.r;
@@ -296,6 +261,7 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
         
                         ib_v3_scale(&diffuse_calc, nl_dot, &diffuse_calc);
 
+                        // If vr is greater than 0, calculate specular value
                         if(vr_dot > 0)
                         {
                            specular_calc.x = cur_obj->obj_ref.color.r * spec.r;
@@ -304,6 +270,7 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                            
                            ib_v3_scale(&specular_calc, pow(vr_dot,20), &specular_calc);
                         }
+                        // If not, keep at 0 value
                         else
                         {
                            specular_calc.x = 0;
@@ -312,6 +279,7 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
                         }
                      }
                      
+                     // Calculate final diffuse and specular values
                     	cur_rgb.r += frad * fang * clamp(diffuse_calc.x + specular_calc.x, 0, 1);
                     	cur_rgb.g += frad * fang * clamp(diffuse_calc.y + specular_calc.y, 0, 1);
                     	cur_rgb.b += frad * fang * clamp(diffuse_calc.z + specular_calc.z, 0, 1);
@@ -323,6 +291,7 @@ void render(int *width, int *height, linked_list *objs, rgb_list *color_buff)
             }
          }
          
+         // Clamp final color values
          cur_rgb.r = clamp(cur_rgb.r, 0, 1);
          cur_rgb.g = clamp(cur_rgb.g, 0, 1);
          cur_rgb.b = clamp(cur_rgb.b, 0, 1);
@@ -511,6 +480,60 @@ void add_rgb(rgb *data, rgb_list *list)
       list->last = list->last->next;
       list->size = list->size + 1;
    }
+}
+
+// Helper method used to return whether or not the current object is under a shadow
+bool shadowed(ib_v3 *ro, ib_v3 *rdn, float *dist, int *closest_index, linked_list *list)
+{
+   // Variable declarations
+   obj_node *shadow_node = list->first;
+   float closest_shadow_dist = INFINITY;
+   bool shadow = FALSE;
+   
+   // Check for shadows
+   for (int index = 0; index < list->size; index++)
+   {
+      // Skip the current object
+      if (*closest_index == index)
+      {
+         shadow_node = shadow_node->next;
+         continue;
+      }
+
+      // Check if intersection with plane
+      if (shadow_node->obj_ref.type == PLANE)
+      {
+         plane_intersection(ro, rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
+      }
+      // Check if intersection with sphere
+      else if (shadow_node->obj_ref.type == SPHERE)
+      {
+         sphere_intersection(ro, rdn, &(shadow_node->obj_ref), &closest_shadow_dist);
+      }
+      // Otherwise, skip iteration because not object
+      else
+      {
+         shadow_node = shadow_node->next;
+         continue;
+      }
+
+      if (closest_shadow_dist > *dist)
+      {
+         shadow_node = shadow_node->next;
+         continue;
+      }
+
+      if (closest_shadow_dist < *dist && closest_shadow_dist > 0.0)
+      {
+         shadow = TRUE;
+      }
+
+      // Traverse to next node
+      shadow_node = shadow_node->next;
+   }
+   
+   // Return whether or not shadow was encountered
+   return shadow;
 }
 
 // Helper method used to return a clamped value between min and max
