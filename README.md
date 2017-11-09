@@ -13,17 +13,15 @@ capabilities as well as the ability to adjust the way shading affects the colors
 The contents of the project repository are as follows:
 - Source code written in C programming language
 - A Makefile used to build the project
-- A sample program build
-- Sample input/output files to be used with the sample build
+- Sample input/output files to be used with the sample build (input: test.csv, output: out.ppm)
 
 ## Usage ##
 
 Steps to use: 
 
-1. 
-2. 
-3. 
-4. 
+1. Navigate to the directory containing the source code.
+2. Type "make" into a command line interface.
+3. Type ./raycast <height> <width> <in.csv> <out.ppm> into your command line with appropriate input variables to ouput a raycast image.
 
 ## Known Issues ##
 
