@@ -21,7 +21,7 @@ Steps to use:
 
 1. Navigate to the directory containing the source code.
 2. Type "make" into a command line interface.
-3. Type ./raycast <height> <width> <in.csv> <out.ppm> into your command line with appropriate input variables to ouput a raycast image.
+3. Type ./raycast (height) (width) (in.csv) (out.ppm) into your command line with appropriate input variables to ouput a raycast image.
 
 ## Known Issues ##
 
