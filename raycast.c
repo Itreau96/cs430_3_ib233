@@ -41,6 +41,15 @@ int main(int argc, char* argv[])
       // Store width and height
       width = atoi(argv[1]);
       height = atoi(argv[2]);
+      
+      // Throw error if height or width is negative
+      if (width <= 0 || height <= 0)
+      {
+         fprintf(stderr, "Error: You cannot enter an image height or width less than or equal to 0. (err no. %d)\n", INPUT_INVALID);
+
+         // Return error code
+         return RUN_FAIL;
+      }
 
       // Start by parsing file input
       parse(&objs, argv[3], &run_result);
